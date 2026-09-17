@@ -1,0 +1,39 @@
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# NestJS Backend
+backend/dist/
+backend/out-tsc/
+backend/.nest/
+
+# React Native / Expo Frontend
+frontend/.expo/
+frontend/dist/
+frontend/web-build/
+*.jks
+*.p8
+*.mobileprovision
+*.orig.*
+
+# Docker Database Volume
+postgres_data/
+
+# OS/Editor Files
+.DS_Store
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
