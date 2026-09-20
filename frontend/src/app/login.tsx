@@ -1,202 +1,79 @@
-import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Image, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiFetch } from '../utils/api';
-// We will integrate GoogleSignin later once the package is configured
-// import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { useEffect } from 'react';
+
+// NOTE: User needs to put their Web Client ID here
+GoogleSignin.configure({
+  webClientId: 'YOUR_WEB_CLIENT_ID_HERE.apps.googleusercontent.com', 
+});
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const checkSession = async () => {
-    const token = await AsyncStorage.getItem('token');
-    if (token) {
-      const profileSetupDone = await AsyncStorage.getItem('profileSetupDone');
-      if (profileSetupDone) {
-        router.replace('/(tabs)');
-      } else {
-        router.replace('/profile-setup');
-      }
-    }
-  };
 
   useEffect(() => {
-    checkSession();
+    // Optional: Check if already logged in to skip this screen
+    AsyncStorage.getItem('userId').then(id => {
+      if (id) router.replace('/(tabs)');
+    });
   }, []);
 
-  const handleSendOtp = async () => {
-    if (!email) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return;
-    }
-    
+  const handleGoogleLogin = async () => {
     try {
-      setLoading(true);
-      await apiFetch('/auth/request-otp', {
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const user = userInfo.user;
+
+      // Send to backend
+      const response = await apiFetch('/user/google-auth', {
         method: 'POST',
-        body: JSON.stringify({ email: email.toLowerCase() }),
+        body: JSON.stringify({
+          google_id: user.id,
+          email: user.email,
+          name: user.name || 'User'
+        })
       });
-      setLoading(false);
-      // Navigate to OTP screen and pass the email
-      router.push({ pathname: '/verify-otp', params: { email: email.toLowerCase() } });
+
+      if (response && response.id) {
+        await AsyncStorage.setItem('userId', response.id.toString());
+        if (!response.target_goals) {
+          router.replace('/profile-setup');
+        } else {
+          router.replace('/(tabs)');
+        }
+      }
     } catch (error: any) {
-      setLoading(false);
-      Alert.alert('Error', error.message || 'Failed to send OTP');
+      console.log('Google Sign-In Error:', error);
+      Alert.alert('Login Failed', 'Could not sign in with Google. Please try again.');
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.content}
-      >
-        {/* Header Section */}
-        <View style={styles.headerContainer}>
-          <Text style={styles.logoText}>StudyBuddy✨</Text>
-          <Text style={styles.title}>Welcome Back!</Text>
-          <Text style={styles.subtitle}>Unlock your learning journey today.</Text>
+      <View style={styles.content}>
+        <Text style={styles.title}>Study Buddy AI</Text>
+        <Text style={styles.subtitle}>Your AI Powered Coach for Govt & IT Exams</Text>
+        
+        <View style={styles.illustrationPlaceholder}>
+          <Text style={{color: '#9CA3AF'}}>✨ App Illustration ✨</Text>
         </View>
 
-        {/* Input Section */}
-        <View style={styles.formContainer}>
-          <Text style={styles.inputLabel}>Email Address</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. hello@studybuddy.com"
-            placeholderTextColor="#9ca3af"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-
-          <TouchableOpacity style={styles.primaryButton} onPress={handleSendOtp}>
-            <Text style={styles.primaryButtonText}>Send OTP</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Divider */}
-        <View style={styles.dividerContainer}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>OR</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        {/* Social Auth */}
-        <View style={styles.socialContainer}>
-          <TouchableOpacity style={styles.socialButton}>
-            <Text style={styles.socialButtonText}>Continue with Google</Text>
-          </TouchableOpacity>
-        </View>
-
-      </KeyboardAvoidingView>
+        <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin}>
+          <Text style={styles.googleButtonText}>Continue with Google</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FAFAFA',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    justifyContent: 'center',
-  },
-  headerContainer: {
-    marginBottom: 40,
-    alignItems: 'center',
-  },
-  logoText: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#8B5CF6', // Vibrant Purple
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-  },
-  formContainer: {
-    marginBottom: 32,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  input: {
-    height: 56,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: '#111827',
-    marginBottom: 24,
-  },
-  primaryButton: {
-    height: 56,
-    backgroundColor: '#14B8A6', // Vibrant Teal
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#14B8A6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  primaryButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 2,
-    backgroundColor: '#E5E7EB',
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#9CA3AF',
-  },
-  socialContainer: {
-    alignItems: 'center',
-  },
-  socialButton: {
-    width: '100%',
-    height: 56,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  socialButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#374151',
-  }
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  content: { flex: 1, justifyContent: 'center', padding: 32, alignItems: 'center' },
+  title: { fontSize: 36, fontWeight: 'bold', color: '#111827', marginBottom: 8, textAlign: 'center' },
+  subtitle: { fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 48 },
+  illustrationPlaceholder: { width: 200, height: 200, backgroundColor: '#E5E7EB', borderRadius: 100, justifyContent: 'center', alignItems: 'center', marginBottom: 48 },
+  googleButton: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D1D5DB', paddingVertical: 16, paddingHorizontal: 32, borderRadius: 32, width: '100%', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  googleButtonText: { fontSize: 16, fontWeight: 'bold', color: '#374151' }
 });

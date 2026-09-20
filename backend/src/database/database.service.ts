@@ -147,7 +147,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     await this.query(createQuestionBankTableQuery);
 
     try {
-      await this.query(`ALTER TABLE users ADD COLUMN name VARCHAR(255), ADD COLUMN education VARCHAR(255), ADD COLUMN target_goals JSONB, ADD COLUMN english_level VARCHAR(50);`);
+      await this.query(`ALTER TABLE users ADD COLUMN name VARCHAR(255), ADD COLUMN education VARCHAR(255), ADD COLUMN target_goals JSONB, ADD COLUMN english_level VARCHAR(50), ADD COLUMN email VARCHAR(255), ADD COLUMN google_id VARCHAR(255);`);
     } catch(e) {}
 
     this.logger.log('All Database tables checked/created');
