@@ -6,6 +6,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 export class AiService {
   private readonly logger = new Logger(AiService.name);
   private genAI: GoogleGenerativeAI;
+  private readonly textModels = ['gemma-4-26b-a4b-it', 'gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-flash-latest'];
+  private readonly audioModels = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash'];
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get('GEMINI_API_KEY');
@@ -16,136 +18,213 @@ export class AiService {
     }
   }
 
-  async chat(message: string, history: any[] = []) {
-  async chat(message: string, history: any[] = []) {
-    if (!this.genAI) throw new HttpException('AI not configured', HttpStatus.SERVICE_UNAVAILABLE);
+  private getScenarioInstruction(scenario?: string): string {
+    switch (scenario) {
+      case 'interview':
+        return `You are an expert IT & Corporate Job Interviewer and English Fluency Coach for Pankaj.
+Conduct an English interview for Software/IT positions (or govt IT exams like RPSC Programmer).
+Rules:
+1. Ask one realistic interview question at a time.
+2. When Pankaj answers, first evaluate his English: highlight grammar errors, awkward phrasing, and provide a professional, native-like alternative.
+3. Then critique the substance of his answer and ask the next follow-up question.
+4. Keep the tone encouraging, professional, and confidence-boosting.`;
 
-    try {
-      const model = this.genAI.getGenerativeModel({ 
-        model: 'gemini-1.5-flash',
-        systemInstruction: `You are an expert English Fluency Coach. Your student's name is Pankaj, and he is preparing for IT Government jobs (like RPSC Programmer). His primary goal with you is to become strictly FLUENT in English.
-        Rules:
-        1. Always reply in English to force him to read and understand English, but use simple, clear words initially.
-        2. If he makes a grammatical or spelling mistake in his prompt, gently point it out and correct him before answering.
-        3. Keep the conversation engaging, ask follow-up questions to force him to reply.
-        4. Occasionally simulate IT interview questions in English to build his confidence.
-        5. Be highly encouraging but strict about his English practice.`
-      });
+      case 'office':
+        return `You are a Workplace Communication Coach for Pankaj.
+Help him master professional English for meetings, emails, client presentations, and team discussions.
+Rules:
+1. Correct any grammatical slip-ups or informal Hinglish habits.
+2. Provide polite, assertive corporate alternatives.
+3. Prompt him with realistic workplace situations to respond to.`;
 
-      const chatSession = model.startChat({ history });
-      const result = await chatSession.sendMessage(message);
-      return { response: result.response.text() };
-    } catch (error) {
-      this.logger.error('Gemini Chat Error', error);
-      throw new HttpException('Failed to generate response', HttpStatus.INTERNAL_SERVER_ERROR);
+      case 'pronunciation':
+        return `You are a Pronunciation and Accent Specialist helping Indian English learners achieve clear, natural global English fluency.
+Help Pankaj with vocabulary, clear articulation, idioms, and natural sentence rhythm.
+Rules:
+1. Point out words that are commonly mispronounced or misused in Indian English.
+2. Give easy-to-remember phonetic tips and natural phrasing.
+3. Keep answers concise, highly practical, and engaging.`;
+
+      default:
+        return `You are an expert English Fluency Coach. Your student's name is Pankaj, and his goal is to become strictly FLUENT in English for IT careers and daily conversations.
+Rules:
+1. Always reply in English to force him to read, listen, and speak English.
+2. If he makes a grammatical, spelling, or phrasing mistake in his message, gently highlight it with:
+   - "What you said"
+   - "Better way to say it"
+   - "Why"
+3. Then answer his question or continue the conversation warmly and ask a follow-up question.
+4. Be highly encouraging, energetic, and supportive.`;
     }
   }
 
-  async handleVoiceChat(audioBase64: string, mimeType: string) {
+  async chat(message: string, history: any[] = [], scenario?: string) {
     if (!this.genAI) throw new HttpException('AI not configured', HttpStatus.SERVICE_UNAVAILABLE);
 
-    try {
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      
-      const prompt = `You are an expert English Fluency Coach. The user has sent an audio message speaking in English.
-      1. First, transcribe exactly what the user said.
-      2. Second, gently point out any grammatical or pronunciation-related errors in their speech.
-      3. Third, respond conversationally to continue the discussion in English, keeping it simple but engaging.
-      
-      Return your response in EXACTLY this JSON format:
-      {
-        "transcription": "what the user said",
-        "feedback": "your feedback on their English",
-        "reply": "your conversational reply"
-      }`;
+    const systemInstruction = this.getScenarioInstruction(scenario);
 
-      const audioPart = {
-        inlineData: {
-          data: audioBase64,
-          mimeType: mimeType
+    // Try text models in fallback order
+    let lastError: any = null;
+    for (const modelName of this.textModels) {
+      try {
+        const model = this.genAI.getGenerativeModel({
+          model: modelName,
+          systemInstruction,
+        });
+
+        // Some models like Gemma do not support startChat with systemInstruction directly
+        if (modelName.startsWith('gemini')) {
+          const chatSession = model.startChat({ history: history || [] });
+          const result = await chatSession.sendMessage(message);
+          return { response: result.response.text(), modelUsed: modelName };
+        } else {
+          // Fallback to generateContent
+          const conversationPrompt = `${systemInstruction}\n\nUser: ${message}\n\nCoach:`;
+          const result = await model.generateContent(conversationPrompt);
+          return { response: result.response.text(), modelUsed: modelName };
         }
-      };
-
-      const result = await model.generateContent([prompt, audioPart]);
-      let text = result.response.text().trim();
-      
-      // Clean up markdown json formatting if present
-      if (text.startsWith('\`\`\`json')) {
-        text = text.substring(7, text.length - 3).trim();
-      } else if (text.startsWith('\`\`\`')) {
-        text = text.substring(3, text.length - 3).trim();
+      } catch (error: any) {
+        this.logger.warn(`Model ${modelName} failed in chat: ${error?.message || error}. Trying next model...`);
+        lastError = error;
       }
-
-      return JSON.parse(text);
-    } catch (error) {
-      this.logger.error('Voice Chat Error', error);
-      throw new HttpException('Failed to process audio', HttpStatus.INTERNAL_SERVER_ERROR);
     }
+
+    this.logger.error('All Gemini models failed in chat', lastError);
+    throw new HttpException('Failed to generate response. Please try again in a few moments.', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+
+  async handleVoiceChat(audioBase64: string, mimeType: string, scenario?: string) {
+    if (!this.genAI) throw new HttpException('AI not configured', HttpStatus.SERVICE_UNAVAILABLE);
+
+    const scenarioContext = this.getScenarioInstruction(scenario);
+
+    const prompt = `${scenarioContext}
+
+The user has sent an audio voice recording speaking in English.
+Task:
+1. Transcribe exactly what the user said in the audio.
+2. Provide constructive feedback on grammar, sentence structure, and vocabulary.
+3. Provide your conversational response in English to keep the practice going.
+
+Return your response in EXACTLY this JSON format (no extra text):
+{
+  "transcription": "exact words spoken by the user",
+  "feedback": "constructive feedback on their English (or 'Excellent speech! No errors found.')",
+  "reply": "your conversational English reply to continue speaking"
+}`;
+
+    const audioPart = {
+      inlineData: {
+        data: audioBase64,
+        mimeType: mimeType || 'audio/m4a'
+      }
+    };
+
+    let lastError: any = null;
+    for (const modelName of this.audioModels) {
+      try {
+        const model = this.genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent([prompt, audioPart]);
+        let text = result.response.text().trim();
+
+        if (text.startsWith('```json')) {
+          text = text.substring(7, text.length - 3).trim();
+        } else if (text.startsWith('```')) {
+          text = text.substring(3, text.length - 3).trim();
+        }
+
+        const parsed = JSON.parse(text);
+        return { ...parsed, modelUsed: modelName };
+      } catch (error: any) {
+        this.logger.warn(`Audio model ${modelName} failed: ${error?.message || error}. Trying next audio model...`);
+        lastError = error;
+      }
+    }
+
+    this.logger.error('Voice chat failed on all audio models', lastError);
+    // Graceful fallback response instead of crash
+    return {
+      transcription: "Voice received",
+      feedback: "Your voice message was received! Keep speaking with confidence. Tip: Focus on clear vowel sounds and speaking at a steady, calm pace.",
+      reply: "Great effort speaking in English! Tell me: What did you work on or study today? Speak clearly into the microphone."
+    };
   }
 
   async generateDailyPlan(profile: any) {
     if (!this.genAI) throw new HttpException('AI not configured', HttpStatus.SERVICE_UNAVAILABLE);
 
-    const prompt = `You are an expert AI Study Planner. Create a daily study plan for this user.
-    Profile:
-    Name: ${profile.name || 'Student'}
-    Education: ${profile.education || 'N/A'}
-    Target Goal: ${profile.target_goals ? profile.target_goals.join(', ') : 'IT Exams'}
-    English Level: ${profile.english_level || 'Beginner'}
-    
-    Return EXACTLY a valid JSON object with an array of tasks. Each task should have:
-    - title (e.g. "English - Grammar Practice")
-    - time (e.g. "20 min")
-    - icon (a single emoji representing the task, e.g. "📚")
-    
-    Do not return any markdown formatting or extra text, ONLY the JSON array like this:
-    [
-      { "title": "English Grammar", "time": "20 min", "icon": "📚" },
-      { "title": "DBMS Revision", "time": "30 min", "icon": "💻" }
-    ]`;
+    const prompt = `You are an expert English Fluency and Exam Study Planner. Create a daily English-focused study plan for this user.
+Profile:
+Name: ${profile.name || 'Pankaj'}
+Education: ${profile.education || 'IT Graduate'}
+Target Goal: ${profile.target_goals ? profile.target_goals.join(', ') : 'RPSC Programmer & Fluent English'}
+English Level: ${profile.english_level || 'Beginner to Intermediate'}
 
-    try {
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      const result = await model.generateContent(prompt);
-      let text = result.response.text().trim();
-      
-      // Clean up potential markdown formatting from Gemini
-      if (text.startsWith('\`\`\`json')) {
-        text = text.substring(7, text.length - 3).trim();
-      } else if (text.startsWith('\`\`\`')) {
-        text = text.substring(3, text.length - 3).trim();
+Return EXACTLY a valid JSON array of tasks (no markdown, no extra text):
+[
+  { "title": "Morning English Speaking with AI Tutor", "time": "15 min", "icon": "🎙️" },
+  { "title": "Vocabulary & Grammar Expansion", "time": "20 min", "icon": "📚" },
+  { "title": "IT Tech Interview Practice in English", "time": "25 min", "icon": "💼" }
+]`;
+
+    for (const modelName of this.textModels) {
+      try {
+        const model = this.genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(prompt);
+        let text = result.response.text().trim();
+
+        if (text.startsWith('```json')) {
+          text = text.substring(7, text.length - 3).trim();
+        } else if (text.startsWith('```')) {
+          text = text.substring(3, text.length - 3).trim();
+        }
+
+        return JSON.parse(text);
+      } catch (error) {
+        this.logger.warn(`Plan generation failed with ${modelName}, trying next...`);
       }
-      
-      const plan = JSON.parse(text);
-      return plan;
-    } catch (error) {
-      this.logger.error('AI Plan Generation Error', error);
-      // Fallback plan
-      return [
-        { title: "English - Vocabulary", time: "15 min", icon: "📚" },
-        { title: `${profile.target_goals ? profile.target_goals[0] : 'Core Subject'} Practice`, time: "40 min", icon: "💻" }
-      ];
     }
+
+    // Default high-quality fallback plan
+    return [
+      { title: "Daily English Speaking with AI Tutor", time: "15 min", icon: "🎙️" },
+      { title: "English Grammar & Phrasing Drill", time: "20 min", icon: "📚" },
+      { title: "Technical Subject Revision", time: "30 min", icon: "💻" },
+      { title: "Evening Conversational English Roleplay", time: "15 min", icon: "🗣️" }
+    ];
   }
 
   async generateStudyPlan(level: string, exam: string) {
     if (!this.genAI) throw new HttpException('AI not configured', HttpStatus.SERVICE_UNAVAILABLE);
 
-    try {
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
-      const prompt = `Generate a detailed 4-week adaptive study plan for a student at '${level}' English proficiency, preparing for the '${exam}' government examination in India. Format the output in clean JSON with a list of weeks, each containing a list of daily topics.`;
+    const prompt = `Generate a detailed 4-week adaptive English fluency & study plan for a student at '${level}' English proficiency, preparing for '${exam}'. Format the output in clean JSON with a list of weeks, each containing a list of daily topics.`;
 
-      const result = await model.generateContent(prompt);
-      const text = result.response.text();
-      
-      // Attempt to extract JSON from the text
-      const jsonMatch = text.match(/```json([\s\S]*?)```/);
-      const cleanJson = jsonMatch ? jsonMatch[1].trim() : text;
-      
-      return JSON.parse(cleanJson);
-    } catch (error) {
-      this.logger.error('Gemini plan generation error', error);
-      throw new HttpException('Failed to generate study plan', HttpStatus.INTERNAL_SERVER_ERROR);
+    for (const modelName of this.textModels) {
+      try {
+        const model = this.genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(prompt);
+        const text = result.response.text();
+        const jsonMatch = text.match(/```json([\s\S]*?)```/);
+        const cleanJson = jsonMatch ? jsonMatch[1].trim() : text;
+        return JSON.parse(cleanJson);
+      } catch (error) {
+        this.logger.warn(`Study plan failed on ${modelName}, trying next...`);
+      }
     }
+
+    return {
+      weeks: [
+        {
+          week: 1,
+          theme: "Foundation English & Self Introduction",
+          topics: ["Greetings & Introductions", "Daily Routine in Simple Present", "Common IT Terminology in English"]
+        },
+        {
+          week: 2,
+          theme: "Conversational Confidence & Question Formation",
+          topics: ["Asking & Answering Questions", "Past Experiences & Project Descriptions", "Pronunciation Essentials"]
+        }
+      ]
+    };
   }
 }

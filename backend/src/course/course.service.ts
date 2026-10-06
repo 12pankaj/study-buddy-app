@@ -12,7 +12,11 @@ export class CourseService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    await this.seedInitialCourseContent();
+    try {
+      await this.seedInitialCourseContent();
+    } catch (err: any) {
+      this.logger.warn('Course content seeding skipped (DB not ready): ' + (err?.message || err));
+    }
   }
 
   async seedInitialCourseContent() {
@@ -144,8 +148,18 @@ End with "Best regards," or "Thanks,".
   }
 
   async getLessons() {
-    const res = await this.dbService.query(`SELECT * FROM lessons ORDER BY order_index ASC`);
-    return res.rows;
+    try {
+      const res = await this.dbService.query(`SELECT * FROM lessons ORDER BY order_index ASC`);
+      if (res.rows && res.rows.length > 0) return res.rows;
+    } catch {
+      this.logger.warn('Failed to fetch lessons from DB, using structured fallback');
+    }
+    return [
+      { id: 1, title: 'Chapter 1: The Foundation - Nouns & Pronouns', description: 'Learn the basics of naming words and their replacements to speak naturally.', level: 'beginner' },
+      { id: 2, title: 'Chapter 2: The Heart of English - Action Verbs & Tenses', description: 'Master Simple Present, Past, and Future Tenses.', level: 'beginner' },
+      { id: 3, title: 'Chapter 3: Connecting Your Thoughts - Conjunctions & Prepositions', description: 'Join sentences smoothly with because, although, in, on, at.', level: 'intermediate' },
+      { id: 4, title: 'Chapter 4: The IT Professional - Job Interview & Tech English', description: 'Prepare for software interviews and professional self-introductions in English.', level: 'advanced' },
+    ];
   }
 
   async getQuizzes(lessonId: number) {

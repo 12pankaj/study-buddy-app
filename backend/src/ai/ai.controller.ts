@@ -10,14 +10,22 @@ export class AiController {
   ) {}
 
   @Post('chat')
-  async chat(@Body('message') message: string, @Body('history') history: any[]) {
-    return this.aiService.chat(message, history);
+  async chat(
+    @Body('message') message: string,
+    @Body('history') history: any[],
+    @Body('scenario') scenario?: string
+  ) {
+    return this.aiService.chat(message, history, scenario);
   }
 
   @Post('speech')
-  async speech(@Body('audioBase64') audioBase64: string, @Body('mimeType') mimeType: string) {
+  async speech(
+    @Body('audioBase64') audioBase64: string,
+    @Body('mimeType') mimeType: string,
+    @Body('scenario') scenario?: string
+  ) {
     if (!audioBase64) return { error: 'No audio provided' };
-    return this.aiService.handleVoiceChat(audioBase64, mimeType || 'audio/m4a');
+    return this.aiService.handleVoiceChat(audioBase64, mimeType || 'audio/m4a', scenario);
   }
 
   @Post('daily-plan')

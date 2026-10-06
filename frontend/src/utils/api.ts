@@ -1,7 +1,13 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-// For Android emulator to hit local NestJS, use 10.0.2.2. For iOS Simulator, use localhost.
-export const API_BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
+// Automatically detect the host computer IP when running on physical mobile device or emulator
+const debuggerHost = Constants.expoConfig?.hostUri;
+const detectedIp = debuggerHost ? debuggerHost.split(':')[0] : null;
+
+export const API_BASE_URL = 
+  process.env.EXPO_PUBLIC_API_URL || 
+  (detectedIp ? `http://${detectedIp}:3000` : (Platform.OS === 'android' ? 'http://10.155.0.148:3000' : 'http://localhost:3000'));
 
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;

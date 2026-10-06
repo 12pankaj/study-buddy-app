@@ -27,8 +27,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       await this.pool.query('SELECT NOW()');
       this.logger.log('Database connection successful');
       await this.initSchema();
-    } catch (error) {
-      this.logger.error('Failed to connect to database or init schema. Please check your local PostgreSQL credentials in .env file.', error.message);
+    } catch (error: any) {
+      this.logger.error('Failed to connect to database or init schema. Please check your local PostgreSQL credentials in .env file.', error?.message || error);
     }
   }
 

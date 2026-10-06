@@ -96,12 +96,11 @@ export class AuthService {
       });
       
       const payload = ticket.getPayload();
-      const email = payload.email;
-      const name = payload.name;
-
-      if (!email) {
+      if (!payload || !payload.email) {
         throw new HttpException('No email found in Google payload', HttpStatus.BAD_REQUEST);
       }
+      const email = payload.email;
+      const name = payload.name;
 
       const userRes = await this.dbService.query(`SELECT * FROM users WHERE email = $1`, [email]);
       let user;
