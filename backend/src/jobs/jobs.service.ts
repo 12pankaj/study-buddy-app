@@ -56,12 +56,14 @@ export class JobsService implements OnModuleInit {
       for (const job of jobs) {
         // Simple deadline parsing or fallback
         const deadlineDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); 
+        // using a fake unique link for scraper
+        const fakeLink = 'https://www.freejobalert.com/' + encodeURIComponent(job.title);
 
         await this.dbService.query(
-          `INSERT INTO jobs (title, source, url, deadline) 
+          `INSERT INTO jobs (title, source, link, deadline) 
            VALUES ($1, $2, $3, $4)
-           ON CONFLICT (title) DO NOTHING`,
-          [job.title, job.source, 'https://www.freejobalert.com', deadlineDate]
+           ON CONFLICT (link) DO NOTHING`,
+          [job.title, job.source, fakeLink, deadlineDate]
         );
       }
       this.logger.log(`Successfully scraped and updated ${jobs.length} IT Jobs.`);
@@ -71,14 +73,14 @@ export class JobsService implements OnModuleInit {
       // Fallback Seed data if offline/blocked
       try {
         await this.dbService.query(`
-          INSERT INTO jobs (title, source, url, deadline) 
+          INSERT INTO jobs (title, source, link, deadline) 
           VALUES ('RPSC Programmer 2024 Recruitment', 'RPSC', 'https://rpsc.rajasthan.gov.in', '2024-12-31')
-          ON CONFLICT (title) DO NOTHING
+          ON CONFLICT (link) DO NOTHING
         `);
         await this.dbService.query(`
-          INSERT INTO jobs (title, source, url, deadline) 
+          INSERT INTO jobs (title, source, link, deadline) 
           VALUES ('Informatics Assistant (IA) RSSB', 'RSSB', 'https://rsmssb.rajasthan.gov.in', '2024-11-15')
-          ON CONFLICT (title) DO NOTHING
+          ON CONFLICT (link) DO NOTHING
         `);
       } catch (seedErr) {
         this.logger.warn('Job fallback seed skipped (DB not ready)');

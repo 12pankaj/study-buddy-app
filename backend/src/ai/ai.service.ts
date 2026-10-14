@@ -227,4 +227,37 @@ Return EXACTLY a valid JSON array of tasks (no markdown, no extra text):
       ]
     };
   }
+
+  async generateDeepKnowledge(subjectName: string, topicName: string): Promise<any> {
+    if (!this.genAI) throw new HttpException('AI not configured', HttpStatus.SERVICE_UNAVAILABLE);
+
+    const prompt = `
+      You are an expert ${subjectName} teacher. Create a Deep Knowledge Unit for the topic: "${topicName}".
+      Return ONLY a valid JSON array of objects representing different sections of the lesson. Do not include markdown formatting or backticks outside the JSON.
+      Required sections: DEEP_THEORY, CODE_EXAMPLE (or REAL_WORLD_EXAMPLE if not coding), COMMON_MISTAKES, SUMMARY.
+      Format:
+      [
+        { "section_type": "DEEP_THEORY", "content_markdown": "Deep explanation..." },
+        { "section_type": "CODE_EXAMPLE", "content_markdown": "Examples..." }
+      ]
+    `;
+
+    for (const modelName of this.textModels) {
+      try {
+        const model = this.genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(prompt);
+        let text = result.response.text().trim();
+
+        if (text.startsWith('```json')) {
+          text = text.substring(7, text.length - 3).trim();
+        } else if (text.startsWith('```')) {
+          text = text.substring(3, text.length - 3).trim();
+        }
+        return JSON.parse(text);
+      } catch (error) {
+        this.logger.warn(`Deep Knowledge generation failed on ${modelName}, trying next...`);
+      }
+    }
+    throw new HttpException('Failed to generate deep knowledge', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
 }

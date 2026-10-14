@@ -5,9 +5,17 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Audio } from 'expo-av';
-import * as Speech from 'expo-speech';
 import * as FileSystem from 'expo-file-system';
+
+// Safe imports for native modules
+let Audio: any = null;
+let Speech: any = null;
+try {
+  Audio = require('expo-av').Audio;
+} catch (e) { console.log('expo-av missing'); }
+try {
+  Speech = require('expo-speech');
+} catch (e) { console.log('expo-speech missing'); }
 import { apiFetch } from '../utils/api';
 
 interface ChatMessage {
@@ -53,22 +61,25 @@ export default function VoiceChatScreen() {
     // Request permissions on mount
     (async () => {
       try {
-        await Audio.requestPermissionsAsync();
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-        });
+        if (Audio) {
+          await Audio.requestPermissionsAsync();
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: true,
+            playsInSilentModeIOS: true,
+          });
+        }
       } catch (err) {
         console.warn('Audio permission error', err);
       }
     })();
 
     return () => {
-      Speech.stop();
+      if (Speech) Speech.stop();
     };
   }, []);
 
   const speakText = (text: string) => {
+    if (!Speech) return;
     Speech.stop();
     setIsSpeaking(true);
     // Remove coach notes from speech if any, speak only clean reply
@@ -84,13 +95,17 @@ export default function VoiceChatScreen() {
   };
 
   const stopSpeaking = () => {
-    Speech.stop();
+    if (Speech) Speech.stop();
     setIsSpeaking(false);
   };
 
   const startRecording = async () => {
     try {
       if (processing) return;
+      if (!Audio) {
+        Alert.alert('Unsupported', 'Voice recording is not supported on this device.');
+        return;
+      }
       stopSpeaking();
       setIsRecording(true);
       const { recording } = await Audio.Recording.createAsync(

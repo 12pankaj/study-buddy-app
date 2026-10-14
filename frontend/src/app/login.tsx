@@ -1,14 +1,8 @@
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Image, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiFetch } from '../utils/api';
 import { useEffect } from 'react';
-
-// NOTE: User needs to put their Web Client ID here
-GoogleSignin.configure({
-  webClientId: 'YOUR_WEB_CLIENT_ID_HERE.apps.googleusercontent.com', 
-});
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -31,35 +25,7 @@ export default function LoginScreen() {
   };
 
   const handleGoogleLogin = async () => {
-    try {
-      await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
-      const user = (userInfo as any).data?.user || (userInfo as any).user;
-
-      if (!user) throw new Error('No user returned from Google');
-
-      // Send to backend
-      const response = await apiFetch('/user/google-auth', {
-        method: 'POST',
-        body: JSON.stringify({
-          google_id: user.id,
-          email: user.email,
-          name: user.name || 'User'
-        })
-      });
-
-      if (response && response.id) {
-        await AsyncStorage.setItem('userId', response.id.toString());
-        if (!response.target_goals) {
-          router.replace('/profile-setup');
-        } else {
-          router.replace('/(tabs)');
-        }
-      }
-    } catch (error: any) {
-      console.log('Google Sign-In Error:', error);
-      Alert.alert('Login Notice', 'Google Sign-In requires Play Services. You can use Quick Start below to start speaking English right now!');
-    }
+    Alert.alert('Coming Soon', 'Google Sign-In requires a custom dev client. Please use "Start Learning English" for now!');
   };
 
   return (

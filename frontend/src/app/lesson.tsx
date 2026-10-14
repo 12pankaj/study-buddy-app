@@ -8,6 +8,7 @@ export default function LessonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [lesson, setLesson] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [unlockedIndex, setUnlockedIndex] = useState(0);
 
   useEffect(() => {
     fetchLesson();
@@ -25,8 +26,10 @@ export default function LessonScreen() {
     }
   };
 
-  const startExam = () => {
-    router.push({ pathname: '/quiz', params: { lessonId: id } });
+  const handleUnlockNext = () => {
+    if (lesson?.sections && unlockedIndex < lesson.sections.length - 1) {
+      setUnlockedIndex(prev => prev + 1);
+    }
   };
 
   if (loading) {
@@ -52,17 +55,32 @@ export default function LessonScreen() {
       <ScrollView style={styles.content} contentContainerStyle={{ padding: 24 }}>
         <Text style={styles.title}>{lesson?.title}</Text>
         
-        <View style={styles.markdownContainer}>
-          <Text style={styles.bodyText}>
-            {lesson?.content || "No detailed content available for this lesson."}
-          </Text>
-        </View>
+        {lesson?.sections && lesson.sections.length > 0 ? (
+          <>
+            {lesson.sections.slice(0, unlockedIndex + 1).map((sec: any, index: number) => (
+              <View key={index} style={styles.markdownContainer}>
+                <Text style={styles.sectionBadge}>{sec.section_type.replace(/_/g, ' ')}</Text>
+                <Text style={styles.bodyText}>{sec.content_markdown}</Text>
+              </View>
+            ))}
+
+            {unlockedIndex < lesson.sections.length - 1 && (
+              <TouchableOpacity style={styles.unlockButton} onPress={handleUnlockNext}>
+                <Text style={styles.unlockButtonText}>Tap to Reveal Next Concept 🔓</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        ) : (
+          <View style={styles.markdownContainer}>
+            <Text style={styles.bodyText}>Generating deep knowledge from AI... Please refresh soon.</Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* Footer / Action */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.examButton} onPress={startExam}>
-          <Text style={styles.examButtonText}>Start Exam ✍️</Text>
+        <TouchableOpacity style={styles.examButton} onPress={() => Alert.alert('Coming Soon', 'Advanced Deep Assessments are being integrated!')}>
+          <Text style={styles.examButtonText}>Start Assessment ✍️</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -83,8 +101,13 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '900', color: '#8B5CF6', marginBottom: 24 },
   markdownContainer: {
     backgroundColor: '#FFFFFF', padding: 20, borderRadius: 16,
-    borderWidth: 1, borderColor: '#E5E7EB',
+    borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2
+  },
+  sectionBadge: {
+    backgroundColor: '#EEF2FF', color: '#4F46E5', alignSelf: 'flex-start',
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
+    fontSize: 12, fontWeight: 'bold', marginBottom: 12, overflow: 'hidden'
   },
   bodyText: { fontSize: 16, lineHeight: 28, color: '#374151' },
   footer: { padding: 24, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB' },
@@ -93,5 +116,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     shadowColor: '#14B8A6', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5
   },
-  examButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' }
+  examButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
+  unlockButton: {
+    backgroundColor: '#F5F3FF', borderColor: '#8B5CF6', borderWidth: 1.5, borderStyle: 'dashed',
+    borderRadius: 12, paddingVertical: 16, marginTop: 10, marginBottom: 20,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  unlockButtonText: { color: '#8B5CF6', fontSize: 16, fontWeight: '800' }
 });

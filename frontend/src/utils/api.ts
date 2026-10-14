@@ -7,7 +7,7 @@ const detectedIp = debuggerHost ? debuggerHost.split(':')[0] : null;
 
 export const API_BASE_URL = 
   process.env.EXPO_PUBLIC_API_URL || 
-  (detectedIp ? `http://${detectedIp}:3000` : (Platform.OS === 'android' ? 'http://10.155.0.148:3000' : 'http://localhost:3000'));
+  (detectedIp ? `http://${detectedIp}:3000` : (Platform.OS === 'android' ? 'http://10.220.222.148:3000' : 'http://localhost:3000'));
 
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;

@@ -7,17 +7,17 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private pool: Pool;
   private readonly logger = new Logger(DatabaseService.name);
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) { }
 
   async onModuleInit() {
     this.pool = new Pool({
       host: this.configService.get<string>('DB_HOST') || 'localhost',
       port: this.configService.get<number>('DB_PORT') || 5432,
       user: this.configService.get<string>('DB_USER') || 'postgres',
-      password: this.configService.get<string>('DB_PASSWORD') || 'postgres',
-      database: this.configService.get<string>('DB_NAME') || 'postgres',
+      password: this.configService.get<string>('DB_PASSWORD') || 'root',
+      database: this.configService.get<string>('DB_NAME') || 'studybuddy_db',
     });
-    
+
     this.pool.on('error', (err) => {
       this.logger.error('Unexpected error on idle client', err);
     });
@@ -45,7 +45,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `;
-    
+
     const createOtpsTableQuery = `
       CREATE TABLE IF NOT EXISTS otps (
         id SERIAL PRIMARY KEY,
@@ -66,42 +66,69 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
     `;
 
-    const createLessonsTableQuery = `
-      CREATE TABLE IF NOT EXISTS lessons (
+    const createLearningTracksTableQuery = `
+      CREATE TABLE IF NOT EXISTS learning_tracks (
         id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL UNIQUE
+      );
+    `;
+
+    const createSubjectsTableQuery = `
+      CREATE TABLE IF NOT EXISTS subjects (
+        id SERIAL PRIMARY KEY,
+        track_id INTEGER REFERENCES learning_tracks(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL
+      );
+    `;
+
+    const createTopicsTableQuery = `
+      CREATE TABLE IF NOT EXISTS topics (
+        id SERIAL PRIMARY KEY,
+        subject_id INTEGER REFERENCES subjects(id) ON DELETE CASCADE,
         title VARCHAR(255) NOT NULL,
-        description TEXT,
-        content TEXT,
-        level VARCHAR(50) DEFAULT 'beginner',
-        order_index INT NOT NULL,
+        prerequisites JSONB,
+        completeness_score INTEGER DEFAULT 0,
+        status VARCHAR(50) DEFAULT 'DRAFT'
+      );
+    `;
+
+    const createKnowledgeUnitsTableQuery = `
+      CREATE TABLE IF NOT EXISTS knowledge_units (
+        id SERIAL PRIMARY KEY,
+        topic_id INTEGER REFERENCES topics(id) ON DELETE CASCADE,
+        section_type VARCHAR(100) NOT NULL,
+        content_markdown TEXT NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `;
 
-    const createQuizzesTableQuery = `
-      CREATE TABLE IF NOT EXISTS quizzes (
+    const createAssessmentsTableQuery = `
+      CREATE TABLE IF NOT EXISTS assessments (
         id SERIAL PRIMARY KEY,
-        lesson_id INT REFERENCES lessons(id) ON DELETE CASCADE,
+        topic_id INTEGER REFERENCES topics(id) ON DELETE CASCADE,
+        type VARCHAR(50) NOT NULL,
         question TEXT NOT NULL,
-        type VARCHAR(50) DEFAULT 'mcq', -- 'mcq' or 'fill_in_the_blank'
-        options JSONB, -- Array of strings for MCQ
+        options JSONB,
         correct_answer TEXT NOT NULL,
-        explanation TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        deep_explanation TEXT
       );
     `;
 
-    const createUserProgressTableQuery = `
-      CREATE TABLE IF NOT EXISTS user_progress (
-        id SERIAL PRIMARY KEY,
-        user_id INT REFERENCES users(id) ON DELETE CASCADE,
-        lesson_id INT REFERENCES lessons(id) ON DELETE CASCADE,
-        score INT DEFAULT 0,
-        completed BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, lesson_id)
-      );
-    `;
+    await this.query(createUsersTableQuery);
+    await this.query(createOtpsTableQuery);
+    await this.query(createJobsTableQuery);
+
+    // Drop old tables
+    await this.query('DROP TABLE IF EXISTS user_progress CASCADE;');
+    await this.query('DROP TABLE IF EXISTS quizzes CASCADE;');
+    await this.query('DROP TABLE IF EXISTS lessons CASCADE;');
+
+    // Create new knowledge base tables
+    await this.query(createLearningTracksTableQuery);
+    await this.query(createSubjectsTableQuery);
+    await this.query(createTopicsTableQuery);
+    await this.query(createKnowledgeUnitsTableQuery);
+    await this.query(createAssessmentsTableQuery);
 
     const createStudyPlansTableQuery = `
       CREATE TABLE IF NOT EXISTS study_plans (
@@ -136,26 +163,17 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
     `;
 
-    await this.query(createUsersTableQuery);
-    await this.query(createOtpsTableQuery);
-    await this.query(createJobsTableQuery);
-    await this.query(createLessonsTableQuery);
-    await this.query(createQuizzesTableQuery);
-    await this.query(createUserProgressTableQuery);
     await this.query(createStudyPlansTableQuery);
     await this.query(createExamSyllabusTableQuery);
     await this.query(createQuestionBankTableQuery);
 
     try {
       await this.query(`ALTER TABLE users ADD COLUMN name VARCHAR(255), ADD COLUMN education VARCHAR(255), ADD COLUMN target_goals JSONB, ADD COLUMN english_level VARCHAR(50), ADD COLUMN email VARCHAR(255), ADD COLUMN google_id VARCHAR(255);`);
-    } catch(e) {}
+    } catch (e) { }
 
     this.logger.log('All Database tables checked/created');
-    await this.seedInitialCourseContent();
     await this.seedExamContent();
   }
-
-  async seedInitialCourseContent() {}
 
   async seedExamContent() {
     const res = await this.query(`SELECT COUNT(*) FROM exam_syllabus`);
