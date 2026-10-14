@@ -1,9 +1,13 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, HttpException, HttpStatus } from '@nestjs/common';
 import { UserService } from './user.service.js';
+import { AuthService } from '../auth/auth.service.js';
 
 @Controller('user')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Get('profile/:id')
   async getProfile(@Param('id') id: string) {
@@ -16,7 +20,10 @@ export class UserController {
   }
 
   @Post('google-auth')
-  async googleAuth(@Body() body: any) {
-    return this.userService.googleAuth(body);
+  async googleAuth(@Body('idToken') idToken: string) {
+    if (!idToken) {
+      throw new HttpException('Google ID Token is required for authentication', HttpStatus.BAD_REQUEST);
+    }
+    return this.authService.googleLogin(idToken);
   }
 }

@@ -6,7 +6,7 @@ import { apiFetch } from '../utils/api';
 
 export default function QuizScreen() {
   const router = useRouter();
-  const { lessonId } = useLocalSearchParams<{ lessonId: string }>();
+  const { lessonId, type } = useLocalSearchParams<{ lessonId: string; type?: string }>();
   
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -23,7 +23,8 @@ export default function QuizScreen() {
 
   const fetchQuizzes = async () => {
     try {
-      const data = await apiFetch(`/course/quizzes/${lessonId}`);
+      const queryParam = type ? `?type=${type}` : '';
+      const data = await apiFetch(`/course/quizzes/${lessonId}${queryParam}`);
       if (data && data.length > 0) {
         setQuizzes(data);
       } else {
@@ -40,40 +41,51 @@ export default function QuizScreen() {
 
   const handleAnswer = (selectedOption: string) => {
     const currentQ = quizzes[currentIndex];
-    
-    if (selectedOption === currentQ.correct_answer) {
-      setScore(score + 10);
-    } else {
-      setMistakes([...mistakes, { 
-        question: currentQ.question, 
-        userAnswer: selectedOption, 
-        correctAnswer: currentQ.correct_answer 
-      }]);
-    }
+    const isCorrect = selectedOption === currentQ.correct_answer;
+
+    const nextScore = isCorrect ? score + 10 : score;
+    const nextMistakes = isCorrect
+      ? mistakes
+      : [
+          ...mistakes,
+          {
+            question: currentQ.question,
+            userAnswer: selectedOption,
+            correctAnswer: currentQ.correct_answer,
+          },
+        ];
+
+    setScore(nextScore);
+    setMistakes(nextMistakes);
 
     if (currentIndex < quizzes.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      finishQuiz();
+      finishQuiz(nextScore, nextMistakes);
     }
   };
 
-  const finishQuiz = async () => {
+  const finishQuiz = async (finalScore: number, finalMistakes: any[]) => {
     setShowResults(true);
-    // Submit score to backend
+    // Submit real final score and final mistakes to backend
     try {
       const storedId = await AsyncStorage.getItem('userId');
       const userId = storedId ? parseInt(storedId) : 1;
       await apiFetch('/course/submit', {
         method: 'POST',
-        body: JSON.stringify({ userId, lessonId: parseInt(lessonId), score })
+        body: JSON.stringify({ 
+          userId, 
+          lessonId, 
+          score: finalScore,
+          type 
+        })
       });
 
-      if (mistakes.length > 0) {
+      if (finalMistakes.length > 0) {
         setAnalyzing(true);
         const data = await apiFetch('/course/analyze-mistakes', {
           method: 'POST',
-          body: JSON.stringify({ mistakes })
+          body: JSON.stringify({ mistakes: finalMistakes })
         });
         setAiFeedback(data?.feedback || 'Great effort! Review the chapter theory to master these concepts.');
         setAnalyzing(false);

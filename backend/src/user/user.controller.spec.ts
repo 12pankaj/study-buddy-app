@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserController } from './user.controller.js';
 import { UserService } from './user.service.js';
+import { AuthService } from '../auth/auth.service.js';
 import { vi, describe, beforeEach, it, expect } from 'vitest';
 
 describe('UserController', () => {
@@ -15,7 +16,12 @@ describe('UserController', () => {
           useValue: {
             getProfile: vi.fn().mockResolvedValue({ id: 1, name: 'Pankaj' }),
             updateProfile: vi.fn().mockResolvedValue({ id: 1 }),
-            googleAuth: vi.fn().mockResolvedValue({ id: 1, name: 'Pankaj' }),
+          },
+        },
+        {
+          provide: AuthService,
+          useValue: {
+            googleLogin: vi.fn().mockResolvedValue({ id: 1, email: 'test@example.com' }),
           },
         },
       ],

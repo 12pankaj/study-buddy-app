@@ -51,82 +51,57 @@ export default function LoginScreen() {
     }
   };
 
-  // 2. Real Google Login Flow (with graceful Play Services fallback)
+  // 2. Verified Google Login Flow (Strict ID Token verification)
   const handleGoogleLogin = async () => {
     try {
       setGoogleLoading(true);
 
-      if (GoogleSignin) {
-        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-        const userInfo = await GoogleSignin.signIn();
-        const user = (userInfo as any).data?.user || (userInfo as any).user;
-
-        if (user && user.email) {
-          await authenticateWithBackend({
-            google_id: user.id || 'google_' + Date.now(),
-            email: user.email,
-            name: user.name || 'Google User'
-          });
-          return;
-        }
-      }
-      // If native GoogleSignin is not available (e.g. running in Expo Go or missing Play Services)
-      promptDemoGoogleLogin('Google Sign-In module requires native Play Services build.');
-    } catch (error: any) {
-      console.log('Google Sign-In Error:', error);
-      if (error?.code === 'SIGN_IN_CANCELLED') {
-        setGoogleLoading(false);
+      if (!GoogleSignin) {
+        Alert.alert(
+          'Google Sign-In Unavailable',
+          'Google Sign-In requires native Google Play Services. Please use Email OTP or Instant Practice to log in.'
+        );
         return;
       }
-      promptDemoGoogleLogin(error?.message || 'Google Play Services unavailable on this device.');
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
 
-  const promptDemoGoogleLogin = (reason: string) => {
-    Alert.alert(
-      'Google Sign-In',
-      `${reason}\n\nWould you like to continue with standard Google account (Pankaj Dadhich)?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Continue with Google', 
-          onPress: async () => {
-            await authenticateWithBackend({
-              google_id: 'google_pankaj_121',
-              email: 'pankaj.dadhich@studybuddy.com',
-              name: 'Pankaj Dadhich'
-            });
-          } 
-        }
-      ]
-    );
-  };
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo?.data?.idToken || (userInfo as any)?.idToken;
 
-  const authenticateWithBackend = async (payload: { google_id: string; email: string; name: string }) => {
-    try {
-      setGoogleLoading(true);
+      if (!idToken) {
+        throw new Error('No Google ID Token returned by Google Services.');
+      }
+
+      // Send cryptographic idToken to backend for verification
       const response = await apiFetch('/user/google-auth', {
         method: 'POST',
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ idToken })
       });
 
-      if (response && response.id) {
-        await AsyncStorage.setItem('userId', response.id.toString());
-        await AsyncStorage.setItem('userEmail', response.email || payload.email);
+      if (response && (response.id || response.user?.id)) {
+        const userId = (response.id || response.user?.id).toString();
+        const userEmail = response.email || response.user?.email || '';
+        await AsyncStorage.setItem('userId', userId);
+        if (userEmail) await AsyncStorage.setItem('userEmail', userEmail);
         
-        if (!response.target_goals) {
+        const targetGoals = response.target_goals || response.user?.target_goals;
+        if (!targetGoals) {
           router.replace('/profile-setup');
         } else {
           await AsyncStorage.setItem('profileSetupDone', 'true');
           router.replace('/(tabs)');
         }
       } else {
-        throw new Error('Backend authentication failed');
+        throw new Error('Failed to authenticate Google token with server.');
       }
-    } catch (err: any) {
-      Alert.alert('Authentication Error', err.message || 'Could not verify account with server.');
+    } catch (error: any) {
+      console.log('Google Sign-In Error:', error);
+      if (error?.code !== 'SIGN_IN_CANCELLED') {
+        Alert.alert(
+          'Google Sign-In Notice',
+          error?.message || 'Google Sign-In was cancelled or unavailable. You can log in securely using Email OTP below.'
+        );
+      }
     } finally {
       setGoogleLoading(false);
     }

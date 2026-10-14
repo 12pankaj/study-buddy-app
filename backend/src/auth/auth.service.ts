@@ -90,36 +90,49 @@ export class AuthService {
 
   async googleLogin(idToken: string) {
     try {
+      const clientId = this.configService.get('GOOGLE_CLIENT_ID');
       const ticket = await this.googleClient.verifyIdToken({
         idToken,
-        audience: this.configService.get('GOOGLE_CLIENT_ID'),
+        audience: clientId || undefined,
       });
       
       const payload = ticket.getPayload();
       if (!payload || !payload.email) {
-        throw new HttpException('No email found in Google payload', HttpStatus.BAD_REQUEST);
+        throw new HttpException('No email found in Google token payload', HttpStatus.BAD_REQUEST);
       }
-      const email = payload.email;
-      const name = payload.name;
+      const email = payload.email.toLowerCase();
+      const name = payload.name || 'Google User';
+      const googleId = payload.sub;
 
       const userRes = await this.dbService.query(`SELECT * FROM users WHERE email = $1`, [email]);
       let user;
       
       if (userRes.rows.length === 0) {
-        // Register new Google user
+        // Register new verified Google user
         const newUser = await this.dbService.query(
-          `INSERT INTO users (email, name, auth_provider) VALUES ($1, $2, 'google') RETURNING *`,
-          [email, name]
+          `INSERT INTO users (email, name, google_id, auth_provider) VALUES ($1, $2, $3, 'google') RETURNING *`,
+          [email, name, googleId]
         );
         user = newUser.rows[0];
       } else {
         user = userRes.rows[0];
+        if (!user.google_id && googleId) {
+          await this.dbService.query(`UPDATE users SET google_id = $1 WHERE id = $2`, [googleId, user.id]);
+          user.google_id = googleId;
+        }
       }
 
-      return { message: 'Google Login successful', user: { id: user.id, email: user.email, name: user.name } };
-    } catch (error) {
-      this.logger.error('Google token verification failed', error);
-      throw new HttpException('Invalid Google Token', HttpStatus.UNAUTHORIZED);
+      return { 
+        message: 'Google Login successful', 
+        id: user.id, 
+        email: user.email, 
+        name: user.name, 
+        target_goals: user.target_goals,
+        user: { id: user.id, email: user.email, name: user.name, target_goals: user.target_goals } 
+      };
+    } catch (error: any) {
+      this.logger.error('Google token cryptographic verification failed', error?.message || error);
+      throw new HttpException('Invalid Google Token: Signature verification failed', HttpStatus.UNAUTHORIZED);
     }
   }
 }

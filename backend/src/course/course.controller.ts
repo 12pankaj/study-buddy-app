@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { CourseService } from './course.service.js';
 
 @Controller('course')
@@ -11,22 +11,23 @@ export class CourseController {
   }
 
   @Get('lesson/:id')
-  async getLesson(@Param('id') id: string) {
-    return this.courseService.getLesson(parseInt(id));
+  async getLesson(@Param('id') id: string, @Query('type') type?: string) {
+    return this.courseService.getLesson(id, type);
   }
 
   @Get('quizzes/:lessonId')
-  async getQuizzes(@Param('lessonId') lessonId: string) {
-    return this.courseService.getQuizzes(parseInt(lessonId));
+  async getQuizzes(@Param('lessonId') lessonId: string, @Query('type') type?: string) {
+    return this.courseService.getQuizzes(lessonId, type);
   }
 
   @Post('submit')
   async submitQuiz(
     @Body('userId') userId: number, 
-    @Body('lessonId') lessonId: number, 
-    @Body('score') score: number
+    @Body('lessonId') lessonId: string | number, 
+    @Body('score') score: number,
+    @Body('type') type?: string
   ) {
-    return this.courseService.submitQuiz(userId, lessonId, score);
+    return this.courseService.submitQuiz(userId, lessonId, score, type);
   }
 
   @Post('analyze-mistakes')
@@ -45,7 +46,12 @@ export class CourseController {
   }
 
   @Post('topic/:id/publish')
-  async publishTopic(@Param('id') id: string) {
-    return this.courseService.publishTopic(parseInt(id));
+  async publishTopic(@Param('id') id: string, @Body('notes') notes?: string) {
+    return this.courseService.publishTopic(parseInt(id), notes);
+  }
+
+  @Post('topic/:id/verify-sources')
+  async verifyTopicSources(@Param('id') id: string, @Body('sources') sources: string[]) {
+    return this.courseService.verifyTopicSources(parseInt(id), sources || []);
   }
 }

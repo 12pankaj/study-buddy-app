@@ -23,14 +23,14 @@ export default function CourseScreen() {
     }
   };
 
-  const openLesson = (lessonId: number) => {
-    router.push({ pathname: '/lesson', params: { id: lessonId } });
+  const openLesson = (item: any) => {
+    router.push({ pathname: '/lesson', params: { id: item.id.toString(), type: item.type || 'lesson' } });
   };
 
   const renderLessonCard = ({ item, index }: { item: any, index: number }) => (
     <TouchableOpacity 
       style={styles.lessonCard} 
-      onPress={() => openLesson(item.id)}
+      onPress={() => openLesson(item)}
     >
       <View style={styles.lessonNumber}>
         <Text style={styles.lessonNumberText}>{index + 1}</Text>
@@ -61,7 +61,7 @@ export default function CourseScreen() {
         ) : (
           <FlatList
             data={lessons}
-            keyExtractor={(item) => item.id.toString()}
+            keyExtractor={(item) => `${item.type || 'lesson'}_${item.id}`}
             renderItem={renderLessonCard}
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}

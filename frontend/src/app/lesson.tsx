@@ -5,7 +5,7 @@ import { apiFetch } from '../utils/api';
 
 export default function LessonScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, type } = useLocalSearchParams<{ id: string; type?: string }>();
   const [lesson, setLesson] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [unlockedIndex, setUnlockedIndex] = useState(0);
@@ -16,7 +16,8 @@ export default function LessonScreen() {
 
   const fetchLesson = async () => {
     try {
-      const data = await apiFetch(`/course/lesson/${id}`);
+      const queryParam = type ? `?type=${type}` : '';
+      const data = await apiFetch(`/course/lesson/${id}${queryParam}`);
       setLesson(data);
     } catch (error) {
       Alert.alert('Error', 'Failed to load lesson content.');
@@ -33,7 +34,8 @@ export default function LessonScreen() {
   };
 
   const startExam = () => {
-    router.push({ pathname: '/quiz', params: { lessonId: id } });
+    const itemType = lesson?.type || type || 'lesson';
+    router.push({ pathname: '/quiz', params: { lessonId: id, type: itemType } });
   };
 
   if (loading) {
