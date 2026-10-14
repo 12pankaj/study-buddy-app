@@ -34,8 +34,8 @@ export class UserService {
     if (res.rows.length === 0) {
       // Create new user
       res = await this.dbService.query(
-        `INSERT INTO users (phone, name, email, google_id) VALUES ($1, $2, $3, $4) RETURNING *`,
-        ['GoogleUser_' + Date.now(), name, email, google_id]
+        `INSERT INTO users (name, email, google_id, auth_provider) VALUES ($1, $2, $3, 'google') RETURNING *`,
+        [name || 'Google User', email, google_id]
       );
     } else {
       // Update google_id if matched by email but google_id is null

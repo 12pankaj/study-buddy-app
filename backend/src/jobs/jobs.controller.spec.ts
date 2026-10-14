@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JobsController } from './jobs.controller.js';
+import { JobsService } from './jobs.service.js';
+import { vi, describe, beforeEach, it, expect } from 'vitest';
 
 describe('JobsController', () => {
   let controller: JobsController;
@@ -7,6 +9,14 @@ describe('JobsController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [JobsController],
+      providers: [
+        {
+          provide: JobsService,
+          useValue: {
+            getAllJobs: vi.fn().mockResolvedValue([]),
+          },
+        },
+      ],
     }).compile();
 
     controller = module.get<JobsController>(JobsController);

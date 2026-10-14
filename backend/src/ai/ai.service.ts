@@ -260,4 +260,58 @@ Return EXACTLY a valid JSON array of tasks (no markdown, no extra text):
     }
     throw new HttpException('Failed to generate deep knowledge', HttpStatus.INTERNAL_SERVER_ERROR);
   }
+
+  async generateTopicAssessments(subjectName: string, topicName: string): Promise<any[]> {
+    if (!this.genAI) {
+      return [
+        {
+          question: `What is the core principle behind ${topicName}?`,
+          options: ['Fundamental design', 'Random operation', 'Deprecated behavior', 'None of the above'],
+          correct_answer: 'Fundamental design',
+          deep_explanation: `The core principle of ${topicName} ensures consistent architecture and performance.`
+        }
+      ];
+    }
+
+    const prompt = `
+      You are an expert ${subjectName} exam creator. Generate 3 high-quality multiple choice assessment questions for the topic: "${topicName}".
+      Return ONLY a valid JSON array of objects without markdown formatting or backticks outside the JSON.
+      Format:
+      [
+        {
+          "question": "Clear question text?",
+          "options": ["Option A", "Option B", "Option C", "Option D"],
+          "correct_answer": "Option A",
+          "deep_explanation": "Detailed explanation of why Option A is correct."
+        }
+      ]
+    `;
+
+    for (const modelName of this.textModels) {
+      try {
+        const model = this.genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(prompt);
+        let text = result.response.text().trim();
+
+        if (text.startsWith('```json')) {
+          text = text.substring(7, text.length - 3).trim();
+        } else if (text.startsWith('```')) {
+          text = text.substring(3, text.length - 3).trim();
+        }
+        return JSON.parse(text);
+      } catch (error) {
+        this.logger.warn(`Assessment generation failed on ${modelName}, trying next...`);
+      }
+    }
+
+    return [
+      {
+        question: `What is the primary role of ${topicName}?`,
+        options: ['Core conceptual foundation', 'Secondary styling', 'Optional wrapper', 'None of these'],
+        correct_answer: 'Core conceptual foundation',
+        deep_explanation: `${topicName} provides key architectural capabilities.`
+      }
+    ];
+  }
 }
+

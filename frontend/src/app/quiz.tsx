@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiFetch } from '../utils/api';
 
 export default function QuizScreen() {
@@ -61,9 +62,11 @@ export default function QuizScreen() {
     setShowResults(true);
     // Submit score to backend
     try {
+      const storedId = await AsyncStorage.getItem('userId');
+      const userId = storedId ? parseInt(storedId) : 1;
       await apiFetch('/course/submit', {
         method: 'POST',
-        body: JSON.stringify({ userId: 1, lessonId: parseInt(lessonId), score }) // hardcoded userId for now
+        body: JSON.stringify({ userId, lessonId: parseInt(lessonId), score })
       });
 
       if (mistakes.length > 0) {
@@ -72,11 +75,11 @@ export default function QuizScreen() {
           method: 'POST',
           body: JSON.stringify({ mistakes })
         });
-        setAiFeedback(data.feedback);
+        setAiFeedback(data?.feedback || 'Great effort! Review the chapter theory to master these concepts.');
         setAnalyzing(false);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Quiz submit error:', err);
       setAnalyzing(false);
     }
   };
@@ -98,7 +101,7 @@ export default function QuizScreen() {
 
           {mistakes.length > 0 ? (
             <View style={styles.aiFeedbackContainer}>
-              <Text style={styles.aiTitle}>🤖 AI Feedback on Mistakes</Text>
+              <Text style={styles.aiTitle}>🤖 AI Coach Feedback on Mistakes</Text>
               {analyzing ? (
                 <ActivityIndicator color="#8B5CF6" />
               ) : (
@@ -118,20 +121,29 @@ export default function QuizScreen() {
   }
 
   const currentQ = quizzes[currentIndex];
-  let options = [];
-  try {
-    options = JSON.parse(currentQ.options);
-  } catch(e) {}
+  let options: string[] = [];
+  if (Array.isArray(currentQ?.options)) {
+    options = currentQ.options;
+  } else if (typeof currentQ?.options === 'string') {
+    try {
+      options = JSON.parse(currentQ.options);
+    } catch {
+      options = [currentQ.options];
+    }
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={{ paddingRight: 12 }}>
+          <Text style={{ fontSize: 18, color: '#6B7280' }}>✕</Text>
+        </TouchableOpacity>
         <Text style={styles.progressText}>Question {currentIndex + 1} of {quizzes.length}</Text>
         <Text style={styles.liveScore}>Score: {score}</Text>
       </View>
 
       <View style={styles.questionContainer}>
-        <Text style={styles.questionText}>{currentQ.question}</Text>
+        <Text style={styles.questionText}>{currentQ?.question}</Text>
 
         <View style={styles.optionsContainer}>
           {options.map((opt: string, index: number) => (

@@ -32,6 +32,10 @@ export default function LessonScreen() {
     }
   };
 
+  const startExam = () => {
+    router.push({ pathname: '/quiz', params: { lessonId: id } });
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: 'center' }]}>
@@ -70,6 +74,10 @@ export default function LessonScreen() {
               </TouchableOpacity>
             )}
           </>
+        ) : lesson?.content ? (
+          <View style={styles.markdownContainer}>
+            <Text style={styles.bodyText}>{lesson.content}</Text>
+          </View>
         ) : (
           <View style={styles.markdownContainer}>
             <Text style={styles.bodyText}>Generating deep knowledge from AI... Please refresh soon.</Text>
@@ -79,7 +87,7 @@ export default function LessonScreen() {
 
       {/* Footer / Action */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.examButton} onPress={() => Alert.alert('Coming Soon', 'Advanced Deep Assessments are being integrated!')}>
+        <TouchableOpacity style={styles.examButton} onPress={startExam}>
           <Text style={styles.examButtonText}>Start Assessment ✍️</Text>
         </TouchableOpacity>
       </View>

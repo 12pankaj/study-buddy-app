@@ -44,7 +44,7 @@ export default function VoiceChatScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   
   const [scenario, setScenario] = useState('general');
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [recording, setRecording] = useState<any | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [inputText, setInputText] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
